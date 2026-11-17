@@ -383,6 +383,7 @@ function updateCartTotals() {
 
     document.getElementById("t-total").innerText = `$${total.toFixed(2)}`;
     calculateChange();
+    updateMobileCartFab();
 }
 
 function calculateChange() {
@@ -474,7 +475,7 @@ function showReceipt(order, cashReceived) {
     const box = document.getElementById("receipt-printable");
     box.innerHTML = `
         <div style="text-align:center; border-bottom:1px dashed #000; padding-bottom:8px; margin-bottom:8px;">
-            <img src="img/logo.jpeg" alt="Logo Tostaderia La Crudita" style="width:75px; height:75px; border-radius:50%; object-fit:cover; margin-bottom:4px;"><br>
+            <img src="img/logo.jpeg" alt="Logo Tostaderia La Crudita" style="width:75px; height:75px; border-radius:50%; object-fit:cover; margin-bottom:4px;" onerror="this.style.display='none'"><br>
             <strong>TOSTADERIA LA CRUDITA</strong><br>
             <small>Emiliano Zapata #72, El Salto, Jal.</small><br>
             <small>Tel: 33 1330 1961</small><br>
@@ -638,6 +639,7 @@ function loadTableToPOS(tableId) {
     document.getElementById("tab-pos").classList.add("active");
 
     renderCart();
+    setTimeout(scrollToTicketMobile, 120);
 }
 
 function releaseTableAfterCheckout(tableId) {
@@ -1035,6 +1037,35 @@ function renderCouponsTable() {
             <td><span class="status-pill ${c.used ? 'closed' : 'open'}">${c.used ? 'Canjeado' : 'Activo'}</span></td>
         </tr>
     `).join("");
+}
+
+// =========================================================================
+// CONTROLES TÁCTILES PARA CELULAR (SCROLL A TICKET / CATÁLOGO)
+// =========================================================================
+function updateMobileCartFab() {
+    const fab = document.getElementById("mobile-cart-fab");
+    if (!fab) return;
+
+    const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+    const { total } = getCartTotals();
+
+    if (totalItems > 0) {
+        fab.classList.remove("hidden-fab");
+        document.getElementById("fab-items-count").innerText = `${totalItems} art.`;
+        document.getElementById("fab-total-amount").innerText = `$${total.toFixed(2)}`;
+    } else {
+        fab.classList.add("hidden-fab");
+    }
+}
+
+function scrollToTicketMobile() {
+    const ticket = document.querySelector(".pos-ticket");
+    if (ticket) ticket.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function scrollToCatalogMobile() {
+    const catalog = document.querySelector(".pos-catalog");
+    if (catalog) catalog.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 // =========================================================================
