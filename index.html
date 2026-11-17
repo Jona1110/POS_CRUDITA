@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POS & Centro de Control | Tostaderia La Crudita</title>
+    <!-- Font Awesome para iconografía limpia -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <!-- Chart.js para gráficas financieras reales -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="pos.css">
+</head>
+<body>
+
+    <!-- BARRA SUPERIOR DE NAVEGACIÓN -->
+    <header class="topbar">
+        <div class="brand">
+            <img src="img/logo.jpeg" alt="Logo Tostaderia La Crudita" class="brand-logo">
+            <div>
+                <h1>Tostaderia La Crudita</h1>
+                <span>Emiliano Zapata #72, El Salto, Jal. • Tel: 33 1330 1961</span>
+            </div>
+        </div>
+
+        <nav class="main-nav">
+            <button class="nav-btn active" data-tab="pos"><i class="fa-solid fa-cash-register"></i> Caja POS</button>
+            <button class="nav-btn" data-tab="mesas">
+                <i class="fa-solid fa-chair"></i> Mesas 
+                <span class="badge-count" id="tables-badge">0</span>
+            </button>
+            <button class="nav-btn" data-tab="domicilio">
+                <i class="fa-solid fa-motorcycle"></i> Domicilio 
+                <span class="badge-count" id="delivery-badge">0</span>
+            </button>
+            <button class="nav-btn" data-tab="dashboard"><i class="fa-solid fa-chart-line"></i> Finanzas</button>
+            <button class="nav-btn" data-tab="caja"><i class="fa-solid fa-vault"></i> Caja y Gastos</button>
+            <button class="nav-btn" data-tab="catalogo"><i class="fa-solid fa-utensils"></i> Menú</button>
+            <button class="nav-btn" data-tab="marketing"><i class="fa-solid fa-ticket"></i> Ruleta y Cupones</button>
+        </nav>
+
+        <div class="system-status">
+            <span id="shift-indicator" class="status-pill closed"><i class="fa-solid fa-circle"></i> Turno Cerrado</span>
+            <span id="sync-status" class="sync-pill" title="Estado de conexión con Google Sheets"><i class="fa-solid fa-cloud"></i> Local / Listo</span>
+        </div>
+    </header>
+
+    <!-- CONTENEDOR PRINCIPAL DE VISTAS -->
+    <main class="main-wrapper">
+
+        <!-- =========================================================
+             VISTA 1: PUNTO DE VENTA RÁPIDO (MOSTRADOR, MESA Y DOMICILIO)
+        ========================================================== -->
+        <section id="tab-pos" class="tab-view active">
+            <div class="pos-layout">
+                <!-- Columna Izquierda: Buscador, Categorías y Platillos -->
+                <div class="pos-catalog">
+                    <div class="catalog-controls">
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="pos-search" placeholder="Buscar aguachile, tostada, charola, bebida...">
+                        </div>
+                        <div class="category-pills" id="category-filters">
+                            <button class="cat-pill active" data-cat="Todos">Todos</button>
+                            <button class="cat-pill" data-cat="Aguachiles">Aguachiles</button>
+                            <button class="cat-pill" data-cat="Tostadas">Tostadas</button>
+                            <button class="cat-pill" data-cat="Charolas">Charolas</button>
+                            <button class="cat-pill" data-cat="Bebidas">Bebidas</button>
+                            <button class="cat-pill" data-cat="Extras">Extras</button>
+                        </div>
+                    </div>
+
+                    <div class="products-grid" id="pos-products-grid">
+                        <!-- Renderizado dinámico de productos -->
+                    </div>
+                </div>
+
+                <!-- Columna Derecha: Ticket / Orden Actual -->
+                <aside class="pos-ticket">
+                    <div class="ticket-header">
+                        <h2><i class="fa-solid fa-receipt"></i> Nueva Orden</h2>
+                        <button class="btn-icon-danger" onclick="clearCart()" title="Vaciar orden / Desvincular mesa"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>
+
+                    <!-- Banner de Mesa Vinculada (visible cuando se cobra una mesa desde salón) -->
+                    <div id="linked-table-banner" class="linked-table-banner hidden">
+                        <div>
+                            <i class="fa-solid fa-chair"></i>
+                            <span id="linked-table-text">Cobrando Mesa 1</span>
+                        </div>
+                        <button type="button" onclick="unlinkTableFromCart()" title="Desvincular mesa">&times;</button>
+                    </div>
+
+                    <!-- Modalidad de Pedido -->
+                    <div class="order-modes">
+                        <button class="mode-btn active" data-mode="Mostrador" onclick="selectOrderMode('Mostrador', this)">
+                            <i class="fa-solid fa-store"></i> Mostrador
+                        </button>
+                        <button class="mode-btn" data-mode="Para Llevar" onclick="selectOrderMode('Para Llevar', this)">
+                            <i class="fa-solid fa-bag-shopping"></i> Para Llevar
+                        </button>
+                        <button class="mode-btn" data-mode="Domicilio" onclick="selectOrderMode('Domicilio', this)">
+                            <i class="fa-solid fa-motorcycle"></i> Domicilio
+                        </button>
+                    </div>
+
+                    <!-- Formulario dinámico según modalidad -->
+                    <div class="customer-fields" id="customer-fields">
+                        <input type="text" id="order-customer-name" placeholder="Nombre del cliente / Mesa (Opcional)">
+                        <div id="delivery-extra-fields" class="hidden">
+                            <input type="tel" id="order-customer-phone" placeholder="Teléfono (ej. 33 1330 1961)">
+                            <input type="text" id="order-customer-address" placeholder="Dirección exacta y referencias en El Salto">
+                            <div class="two-cols">
+                                <select id="order-delivery-zone" onchange="updateCartTotals()">
+                                    <option value="0">Zona Centro El Salto ($0)</option>
+                                    <option value="20">Zona Cercana (+$20)</option>
+                                    <option value="35">Zona Media (+$35)</option>
+                                    <option value="50">Zona Retirada (+$50)</option>
+                                </select>
+                                <select id="order-driver">
+                                    <option value="Por Asignar">Repartidor: Por asignar</option>
+                                    <option value="Repartidor 1 (Moto)">Repartidor 1 (Moto)</option>
+                                    <option value="Repartidor 2 (Moto)">Repartidor 2 (Moto)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lista de productos en la orden -->
+                    <div class="ticket-items" id="cart-items-list">
+                        <div class="empty-state">
+                            <i class="fa-solid fa-basket-shopping"></i>
+                            <p>Selecciona platillos o carga una mesa abierta</p>
+                        </div>
+                    </div>
+
+                    <!-- Cupón promocional (De la dinámica Presume tu Crudita) -->
+                    <div class="coupon-bar">
+                        <input type="text" id="coupon-input" placeholder="Código de cupón (ej. CRUDITA-10)">
+                        <button class="btn-secondary" onclick="applyCoupon()">Aplicar</button>
+                    </div>
+                    <div id="coupon-feedback" class="coupon-feedback"></div>
+
+                    <!-- Totales y Método de Pago -->
+                    <div class="ticket-totals">
+                        <div class="total-line"><span>Subtotal:</span><span id="t-subtotal">$0.00</span></div>
+                        <div class="total-line" id="t-delivery-row" style="display:none;"><span>Envío Domicilio:</span><span id="t-delivery">$0.00</span></div>
+                        <div class="total-line discount-line" id="t-discount-row" style="display:none;"><span>Descuento Cupón:</span><span id="t-discount">-$0.00</span></div>
+                        <div class="total-line grand-total"><span>TOTAL:</span><span id="t-total">$0.00</span></div>
+                    </div>
+
+                    <div class="payment-section">
+                        <label>Método de Pago:</label>
+                        <div class="payment-methods">
+                            <button class="pay-btn active" data-pay="Efectivo" onclick="selectPayment('Efectivo', this)"><i class="fa-solid fa-money-bill-wave"></i> Efectivo</button>
+                            <button class="pay-btn" data-pay="Transferencia" onclick="selectPayment('Transferencia', this)"><i class="fa-solid fa-building-columns"></i> Transf.</button>
+                            <button class="pay-btn" data-pay="Tarjeta" onclick="selectPayment('Tarjeta', this)"><i class="fa-solid fa-credit-card"></i> Tarjeta</button>
+                        </div>
+
+                        <div id="cash-calculator" class="cash-calc">
+                            <input type="number" id="cash-received" placeholder="Efectivo recibido ($)" oninput="calculateChange()">
+                            <span class="change-display">Cambio: <strong id="cash-change">$0.00</strong></span>
+                        </div>
+                    </div>
+
+                    <button class="btn-primary-lg" id="btn-process-order" onclick="processOrder()">
+                        <i class="fa-solid fa-check-circle"></i> Cobrar y Enviar a Cocina
+                    </button>
+                </aside>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             VISTA 2: CONTROL DE MESAS EN SALÓN (SINCRONIZADO CON MESEROS)
+        ========================================================== -->
+        <section id="tab-mesas" class="tab-view">
+            <div class="section-header">
+                <div>
+                    <h2><i class="fa-solid fa-chair"></i> Control de Mesas en Vivo</h2>
+                    <p>Visualiza las comandas abiertas por los meseros, cuentas solicitadas y cobra directamente en caja.</p>
+                </div>
+                <div class="delivery-kpis">
+                    <div class="mini-kpi"><span>Mesas Ocupadas</span><strong id="kpi-mesas-ocupadas">0</strong></div>
+                    <div class="mini-kpi warning-kpi"><span>Cuentas Solicitadas</span><strong id="kpi-cuentas-pedidas">0</strong></div>
+                    <div class="mini-kpi"><span>Consumo en Salón</span><strong id="kpi-consumo-salon">$0.00</strong></div>
+                    <button class="btn-secondary" onclick="syncCloudState(true)" title="Actualizar mesas ahora">
+                        <i class="fa-solid fa-rotate"></i> Actualizar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filtro de Zonas -->
+            <div class="category-pills" id="pos-zone-filters" style="margin-bottom: 16px;">
+                <button class="cat-pill active" data-zone="Todas">Todas las Zonas</button>
+                <button class="cat-pill" data-zone="Salón Principal">Salón Principal</button>
+                <button class="cat-pill" data-zone="Terraza">Terraza</button>
+                <button class="cat-pill" data-zone="Terraza Familiar">Terraza Familiar</button>
+                <button class="cat-pill" data-zone="Barra Mariscos">Barra Mariscos</button>
+            </div>
+
+            <div class="pos-tables-grid" id="pos-tables-grid">
+                <!-- Tarjetas de mesas renderizadas dinámicamente -->
+            </div>
+        </section>
+
+        <!-- =========================================================
+             VISTA 3: GESTIÓN DE SERVICIO A DOMICILIO Y REPARTIDORES
+        ========================================================== -->
+        <section id="tab-domicilio" class="tab-view">
+            <div class="section-header">
+                <div>
+                    <h2><i class="fa-solid fa-motorcycle"></i> Entregas en Curso y Control de Repartidores</h2>
+                    <p>Monitoreo de pedidos a domicilio en El Salto, asignación de repartidor, cambio en ruta y liquidación.</p>
+                </div>
+                <div class="delivery-kpis">
+                    <div class="mini-kpi"><span>En Ruta</span><strong id="kpi-en-ruta">0</strong></div>
+                    <div class="mini-kpi"><span>Por Liquidar</span><strong id="kpi-por-liquidar">$0.00</strong></div>
+                </div>
+            </div>
+
+            <div class="deliveries-grid" id="deliveries-list">
+                <!-- Tarjetas de entregas en curso -->
+            </div>
+        </section>
+
+        <!-- =========================================================
+             VISTA 4: DASHBOARD FINANCIERO COMPLETO (SEMANAL Y MENSUAL)
+        ========================================================== -->
+        <section id="tab-dashboard" class="tab-view">
+            <div class="section-header">
+                <div>
+                    <h2><i class="fa-solid fa-chart-pie"></i> Dashboard Financiero y Analítica de Ventas</h2>
+                    <p>Control de ingresos diarios, semanales, mensuales, platillos estrella y rendimiento de "Juebebes".</p>
+                </div>
+                <div class="period-selector">
+                    <button class="period-btn active" onclick="updateDashboard('semana', this)">Esta Semana</button>
+                    <button class="period-btn" onclick="updateDashboard('mes', this)">Este Mes</button>
+                </div>
+            </div>
+
+            <!-- Tarjetas KPI principales -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-icon blue"><i class="fa-solid fa-sack-dollar"></i></div>
+                    <div>
+                        <span>Ingresos del Periodo</span>
+                        <h3 id="dash-total-sales">$0.00</h3>
+                        <small id="dash-orders-count">0 órdenes completadas</small>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon green"><i class="fa-solid fa-money-bill-trend-up"></i></div>
+                    <div>
+                        <span>Ticket Promedio</span>
+                        <h3 id="dash-avg-ticket">$0.00</h3>
+                        <small>Consumo promedio por cliente</small>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon orange"><i class="fa-solid fa-fire"></i></div>
+                    <div>
+                        <span>Platillo Estrella</span>
+                        <h3 id="dash-top-product">-</h3>
+                        <small id="dash-top-product-qty">0 unidades vendidas</small>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon purple"><i class="fa-solid fa-calendar-check"></i></div>
+                    <div>
+                        <span>Día Pico de Venta</span>
+                        <h3 id="dash-peak-day">Jueves (Juebebes)</h3>
+                        <small>Mayor flujo semanal</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráficas Analíticas -->
+            <div class="charts-grid">
+                <div class="chart-card wide">
+                    <h3>Flujo de Ventas por Día de la Semana (Impacto Juebebes y Fin de Semana)</h3>
+                    <canvas id="weeklySalesChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Desglose por Método de Pago</h3>
+                    <canvas id="paymentMethodsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Ranking de Platillos y Últimas Transacciones -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3><i class="fa-solid fa-trophy"></i> Top 5 Platillos Más Vendidos</h3>
+                    <ul class="ranking-list" id="top-products-ranking"></ul>
+                </div>
+                <div class="chart-card wide">
+                    <h3><i class="fa-solid fa-clock-rotate-left"></i> Historial Reciente de Ventas</h3>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Folio</th>
+                                    <th>Fecha / Hora</th>
+                                    <th>Modalidad</th>
+                                    <th>Cliente</th>
+                                    <th>Método</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-sales-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             VISTA 5: CONTROL DE CAJA, TURNOS Y GASTOS DE INSUMOS
+        ========================================================== -->
+        <section id="tab-caja" class="tab-view">
+            <div class="section-header">
+                <div>
+                    <h2><i class="fa-solid fa-vault"></i> Control de Caja, Turnos y Salidas de Efectivo</h2>
+                    <p>Arqueo de caja diario, fondo inicial y registro de compras de insumos (limón, hielo, marisco, etc.).</p>
+                </div>
+            </div>
+
+            <div class="cash-control-grid">
+                <!-- Panel de Apertura y Corte de Caja -->
+                <div class="panel-card">
+                    <h3><i class="fa-solid fa-key"></i> Estado del Turno y Arqueo</h3>
+                    <div class="shift-box" id="shift-control-area">
+                        <label>Fondo Inicial en Caja ($ MXN):</label>
+                        <div class="inline-form">
+                            <input type="number" id="opening-cash-input" placeholder="Ej. 1500.00">
+                            <button class="btn-primary" onclick="openShift()">Abrir Turno</button>
+                        </div>
+                    </div>
+
+                    <div class="arqueo-summary">
+                        <div class="arqueo-row"><span>(+) Fondo Inicial:</span><strong id="arq-fondo">$0.00</strong></div>
+                        <div class="arqueo-row"><span>(+) Ventas en Efectivo:</span><strong id="arq-ventas-efectivo">$0.00</strong></div>
+                        <div class="arqueo-row"><span>(+) Ventas Transferencia/Tarjeta:</span><strong id="arq-ventas-digital">$0.00</strong></div>
+                        <div class="arqueo-row negative"><span>(-) Salidas / Gastos en Efectivo:</span><strong id="arq-gastos">-$0.00</strong></div>
+                        <div class="arqueo-row total"><span>Efectivo Esperado en Cajón:</span><strong id="arq-esperado">$0.00</strong></div>
+                    </div>
+
+                    <button class="btn-danger-full" onclick="closeShift()"><i class="fa-solid fa-lock"></i> Realizar Corte y Cerrar Turno</button>
+                </div>
+
+                <!-- Registro de Gastos / Salidas de Efectivo -->
+                <div class="panel-card">
+                    <h3><i class="fa-solid fa-file-invoice-dollar"></i> Registrar Salida de Efectivo / Insumos</h3>
+                    <form id="expense-form" class="stacked-form" onsubmit="addExpense(event)">
+                        <input type="text" id="exp-concept" placeholder="Concepto (Ej. Compra de 10kg limón / Hielo)" required>
+                        <div class="two-cols">
+                            <select id="exp-category">
+                                <option value="Insumos Frescos">Insumos Frescos</option>
+                                <option value="Hielo / Desechables">Hielo / Desechables</option>
+                                <option value="Proveedores">Proveedores</option>
+                                <option value="Servicios / Gasolina">Servicios / Gasolina</option>
+                            </select>
+                            <input type="number" id="exp-amount" placeholder="Monto ($ MXN)" step="0.01" required>
+                        </div>
+                        <button type="submit" class="btn-primary">Registrar Salida</button>
+                    </form>
+
+                    <h4 style="margin-top: 20px;">Movimientos de Gastos del Día</h4>
+                    <ul class="expense-list" id="expenses-list"></ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             VISTA 6: ADMINISTRADOR DE CATÁLOGO Y DISPONIBILIDAD
+        ========================================================== -->
+        <section id="tab-catalogo" class="tab-view">
+            <div class="section-header">
+                <div>
+                    <h2><i class="fa-solid fa-sliders"></i> Administrador de Menú y Precios</h2>
+                    <p>Modifica precios, agrega platillos nuevos o marca productos como "Agotados" al instante (sincronizado con Menú QR).</p>
+                </div>
+                <button class="btn-primary" onclick="openNewProductModal()"><i class="fa-solid fa-plus"></i> Nuevo Platillo</button>
+            </div>
+
+            <div class="table-responsive panel-card">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Platillo</th>
+                            <th>Categoría</th>
+                            <th>Precio ($ MXN)</th>
+                            <th>Estado en Menú</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="catalog-admin-table"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             VISTA 7: RULETA VIRTUAL Y BITÁCORA DE CUPONES ("PRESUME TU CRUDITA")
+        ========================================================== -->
+        <section id="tab-marketing" class="tab-view">
+            <div class="section-header">
+                <div>
+                    <h2><i class="fa-solid fa-gift"></i> Sorteo Digital y Cupones "Presume tu Crudita"</h2>
+                    <p>Genera cupones únicos de un solo uso para ganadores de redes sociales y valida su canje en mostrador.</p>
+                </div>
+            </div>
+
+            <div class="cash-control-grid">
+                <!-- Ruleta Virtual de Premios -->
+                <div class="panel-card center-content">
+                    <h3><i class="fa-solid fa-dharmachakra"></i> Ruleta de Ganadores en Redes</h3>
+                    <p class="muted-text">Ingresa el @usuario o nombre del participante etiquetado en Facebook/Instagram:</p>
+                    <input type="text" id="winner-handle" class="full-input" placeholder="Ej. @carlos_mendez">
+                    
+                    <div class="wheel-display" id="wheel-result-box">
+                        <span>¡Listo para girar!</span>
+                    </div>
+
+                    <button class="btn-primary-lg" onclick="spinPrizeWheel()"><i class="fa-solid fa-shuffle"></i> Girar Ruleta y Generar Cupón</button>
+                </div>
+
+                <!-- Bitácora de Cupones Emitidos -->
+                <div class="panel-card">
+                    <h3><i class="fa-solid fa-ticket-simple"></i> Bitácora de Cupones Únicos</h3>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Ganador</th>
+                                    <th>Premio / Descuento</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="coupons-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL PARA AGREGAR / EDITAR PLATILLO -->
+    <div id="product-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Agregar Nuevo Platillo</h3>
+                <button onclick="closeProductModal()" class="close-modal">&times;</button>
+            </div>
+            <form onsubmit="saveProduct(event)" class="stacked-form">
+                <input type="hidden" id="edit-prod-id">
+                <label>Nombre del Platillo:</label>
+                <input type="text" id="edit-prod-name" required placeholder="Ej. Charola Especial La Crudita">
+                <label>Categoría:</label>
+                <select id="edit-prod-cat">
+                    <option value="Aguachiles">Aguachiles</option>
+                    <option value="Tostadas">Tostadas</option>
+                    <option value="Charolas">Charolas</option>
+                    <option value="Bebidas">Bebidas</option>
+                    <option value="Extras">Extras</option>
+                </select>
+                <label>Precio ($ MXN):</label>
+                <input type="number" id="edit-prod-price" step="0.50" required placeholder="180">
+                <label>Descripción corta (para Menú QR):</label>
+                <input type="text" id="edit-prod-desc" placeholder="Camarón curtido en limón, pepino, cebolla morada y salsa de la casa">
+                <button type="submit" class="btn-primary">Guardar Platillo</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE TICKET / NOTA DE VENTA GENERADA -->
+    <div id="receipt-modal" class="modal hidden">
+        <div class="modal-content receipt-paper">
+            <div id="receipt-printable"></div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="window.print()"><i class="fa-solid fa-print"></i> Imprimir Ticket</button>
+                <button class="btn-primary" onclick="closeReceiptModal()">Listo</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="pos.js"></script>
+</body>
+</html>
