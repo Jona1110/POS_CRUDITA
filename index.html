@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>POS & Centro de Control | Tostaderia La Crudita</title>
     <!-- Font Awesome para iconografía limpia -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -15,7 +15,7 @@
     <!-- BARRA SUPERIOR DE NAVEGACIÓN -->
     <header class="topbar">
         <div class="brand">
-            <img src="img/logo.jpeg" alt="Logo Tostaderia La Crudita" class="brand-logo">
+            <img src="img/logo.jpeg" alt="Logo Tostaderia La Crudita" class="brand-logo" onerror="this.style.display='none'">
             <div>
                 <h1>Tostaderia La Crudita</h1>
                 <span>Emiliano Zapata #72, El Salto, Jal. • Tel: 33 1330 1961</span>
@@ -78,7 +78,12 @@
                 <aside class="pos-ticket">
                     <div class="ticket-header">
                         <h2><i class="fa-solid fa-receipt"></i> Nueva Orden</h2>
-                        <button class="btn-icon-danger" onclick="clearCart()" title="Vaciar orden / Desvincular mesa"><i class="fa-solid fa-trash-can"></i></button>
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <button type="button" class="mobile-back-catalog-btn" onclick="scrollToCatalogMobile()">
+                                <i class="fa-solid fa-arrow-up"></i> Menú
+                            </button>
+                            <button class="btn-icon-danger" onclick="clearCart()" title="Vaciar orden / Desvincular mesa"><i class="fa-solid fa-trash-can"></i></button>
+                        </div>
                     </div>
 
                     <!-- Banner de Mesa Vinculada (visible cuando se cobra una mesa desde salón) -->
@@ -166,6 +171,18 @@
                         <i class="fa-solid fa-check-circle"></i> Cobrar y Enviar a Cocina
                     </button>
                 </aside>
+            </div>
+
+            <!-- Barra flotante de resumen y cobro rápido en celular -->
+            <div id="mobile-cart-fab" class="mobile-cart-fab hidden-fab" onclick="scrollToTicketMobile()">
+                <div class="fab-left">
+                    <span class="fab-count" id="fab-items-count">0 art.</span>
+                    <div>
+                        <small style="display:block; font-size:0.72rem; opacity:0.85;">Total Orden</small>
+                        <span class="fab-total" id="fab-total-amount">$0.00</span>
+                    </div>
+                </div>
+                <span class="fab-action">Ver Orden y Cobrar &rarr;</span>
             </div>
         </section>
 
